@@ -9,33 +9,18 @@
 </head>
 <body>
 
-<!-- GİRİŞ EKRANI -->
 <div id="loginScreen" class="login-screen">
   <div class="login-card">
-    <div class="login-logo">
-      <i class="ti ti-phone-call"></i>
-      <span>Çağrı Denetim</span>
-    </div>
+    <div class="login-logo"><i class="ti ti-phone-call"></i><span>Çağrı Denetim</span></div>
     <h2>Giriş yap</h2>
     <div id="loginErr" class="err" style="display:none"></div>
-    <div class="form-group">
-      <label>E-posta</label>
-      <input type="email" id="loginEmail" placeholder="ad@sirket.com">
-    </div>
-    <div class="form-group">
-      <label>Şifre</label>
-      <input type="password" id="loginPassword" placeholder="••••••••">
-    </div>
-    <button class="btn-primary" onclick="doLogin()">
-      <i class="ti ti-login"></i> Giriş yap
-    </button>
+    <div class="form-group"><label>E-posta</label><input type="email" id="loginEmail" placeholder="ad@sirket.com"></div>
+    <div class="form-group"><label>Şifre</label><input type="password" id="loginPassword" placeholder="••••••••"></div>
+    <button class="btn-primary" onclick="doLogin()"><i class="ti ti-login"></i> Giriş yap</button>
   </div>
 </div>
 
-<!-- ANA UYGULAMA -->
 <div id="appScreen" class="app" style="display:none">
-
-  <!-- TOPBAR -->
   <div class="topbar">
     <div class="logo"><i class="ti ti-phone-call"></i>Çağrı Denetim</div>
     <div class="nav-item active" onclick="showPage('dashboard',this)"><i class="ti ti-layout-dashboard"></i>Dashboard</div>
@@ -56,6 +41,7 @@
       <input type="time" class="date-input" id="startTime" value="00:00">
       <span style="color:var(--text3);font-size:12px">—</span>
       <input type="time" class="date-input" id="endTime" value="23:59">
+      <input type="text" class="date-input" id="phoneSearch" placeholder="Telefon ara..." style="width:120px">
       <button class="btn-fetch" onclick="fetchAll()"><i class="ti ti-refresh"></i>Getir</button>
       <div class="user-badge" id="userBadge"></div>
       <button class="btn-logout" onclick="doLogout()" title="Çıkış"><i class="ti ti-logout"></i></button>
@@ -102,8 +88,8 @@
       <div class="card" style="padding:0;overflow:hidden">
         <div style="overflow-x:auto">
           <table>
-            <thead><tr><th>Dahili</th><th>Personel</th><th>Departman</th><th>Yön</th><th>Saat</th><th>Süre (sn)</th><th>Çaldırma (sn)</th><th>Durum</th><th>Ses</th></tr></thead>
-            <tbody id="gorusmeTbody"><tr><td colspan="9" class="empty-td">Tarih seçip "Getir" butonuna tıklayın.</td></tr></tbody>
+            <thead><tr><th>Dahili</th><th>Personel</th><th>Departman</th><th>Telefon</th><th>Yön</th><th>Saat</th><th>Süre (sn)</th><th>Çaldırma (sn)</th><th>Durum</th><th>İşlem</th></tr></thead>
+            <tbody id="gorusmeTbody"><tr><td colspan="10" class="empty-td">Tarih seçip "Getir" butonuna tıklayın.</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -135,6 +121,10 @@
         <div class="metric"><div class="metric-label">İhlal var</div><div class="metric-value red" id="dn-fail">—</div></div>
         <div class="metric"><div class="metric-label">Sıfır çaldırma</div><div class="metric-value amber" id="dn-zero">—</div></div>
       </div>
+      <div style="display:flex;gap:16px;margin-bottom:10px;font-size:12px;color:var(--text3)">
+        <span><span style="display:inline-block;width:10px;height:10px;background:rgba(245,158,11,0.3);border-radius:2px;margin-right:4px"></span>1-2 ihlal</span>
+        <span><span style="display:inline-block;width:10px;height:10px;background:rgba(239,68,68,0.2);border-radius:2px;margin-right:4px"></span>3+ ihlal</span>
+      </div>
       <div class="card" style="padding:0;overflow:hidden">
         <div style="overflow-x:auto">
           <table>
@@ -154,8 +144,8 @@
         <div class="card-title"><i class="ti ti-alert-circle"></i>Çaldır-kapat şüphesi (00:00 çaldırma)</div>
         <div style="overflow-x:auto">
           <table>
-            <thead><tr><th>Dahili</th><th>Personel</th><th>Departman</th><th>Saat</th><th>Yön</th><th>Çaldırma (sn)</th><th>Süre (sn)</th><th>Ses</th></tr></thead>
-            <tbody id="suptbody"><tr><td colspan="8" class="empty-td">Tarih seçip "Getir" butonuna tıklayın.</td></tr></tbody>
+            <thead><tr><th>Dahili</th><th>Personel</th><th>Departman</th><th>Telefon</th><th>Saat</th><th>Yön</th><th>Çaldırma (sn)</th><th>Süre (sn)</th><th>İşlem</th></tr></thead>
+            <tbody id="suptbody"><tr><td colspan="9" class="empty-td">Tarih seçip "Getir" butonuna tıklayın.</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -194,20 +184,10 @@
         </div>
         <div id="addUserForm" style="display:none;background:var(--navy3);border-radius:8px;padding:16px;margin-bottom:16px">
           <div class="form-row">
-            <div class="form-group">
-              <label>Ad soyad</label>
-              <input type="text" id="newName" placeholder="Ahmet Yılmaz">
-            </div>
-            <div class="form-group">
-              <label>E-posta</label>
-              <input type="email" id="newEmail" placeholder="ahmet@sirket.com">
-            </div>
-            <div class="form-group">
-              <label>Şifre</label>
-              <input type="password" id="newPass" placeholder="En az 6 karakter">
-            </div>
-            <div class="form-group">
-              <label>Rol</label>
+            <div class="form-group"><label>Ad soyad</label><input type="text" id="newName" placeholder="Ahmet Yılmaz"></div>
+            <div class="form-group"><label>E-posta</label><input type="email" id="newEmail" placeholder="ahmet@sirket.com"></div>
+            <div class="form-group"><label>Şifre</label><input type="password" id="newPass" placeholder="En az 6 karakter"></div>
+            <div class="form-group"><label>Rol</label>
               <select id="newRole">
                 <option value="denetim">Denetim personeli</option>
                 <option value="departman_lideri">Departman lideri</option>
@@ -233,19 +213,34 @@
   </div>
 </div>
 
-<!-- Şifre değiştirme modal -->
+<!-- Şifre modal -->
 <div id="passModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:1000;align-items:center;justify-content:center">
   <div class="modal-card">
     <div class="modal-title">Şifre değiştir</div>
     <div id="passModalErr" class="err" style="display:none"></div>
     <input type="hidden" id="passUserId">
-    <div class="form-group">
-      <label>Yeni şifre</label>
-      <input type="password" id="newPassModal" placeholder="En az 6 karakter">
-    </div>
+    <div class="form-group"><label>Yeni şifre</label><input type="password" id="newPassModal" placeholder="En az 6 karakter"></div>
     <div style="display:flex;gap:8px;margin-top:12px">
       <button class="btn-save" onclick="changePassword()"><i class="ti ti-key"></i>Kaydet</button>
       <button class="btn-cancel" onclick="closePassModal()"><i class="ti ti-x"></i>İptal</button>
+    </div>
+  </div>
+</div>
+
+<!-- Not modal -->
+<div id="noteModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:1000;align-items:center;justify-content:center">
+  <div class="modal-card" style="max-width:480px;width:100%">
+    <div class="modal-title"><i class="ti ti-notes" style="color:var(--accent)"></i> Görüşme notları — <span id="notePersonel" style="color:var(--text2);font-size:13px"></span></div>
+    <input type="hidden" id="noteCallId">
+    <div id="notesList" style="max-height:240px;overflow-y:auto;margin-bottom:14px"></div>
+    <div id="noteErr" class="err" style="display:none"></div>
+    <div class="form-group">
+      <label>Yeni not</label>
+      <textarea id="noteText" rows="3" placeholder="Not yazın..." style="width:100%;background:var(--navy3);border:1px solid var(--border1);color:var(--text1);border-radius:6px;padding:8px;font-size:13px;resize:vertical"></textarea>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:8px">
+      <button class="btn-save" onclick="saveNote()"><i class="ti ti-check"></i>Kaydet</button>
+      <button class="btn-cancel" onclick="closeNote()"><i class="ti ti-x"></i>Kapat</button>
     </div>
   </div>
 </div>
