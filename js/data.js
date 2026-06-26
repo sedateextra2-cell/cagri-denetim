@@ -12,9 +12,54 @@ function getName(r) { return r.ExtensionName || r.extensionName || r.Extension |
 function getTime(r) { return r.Time || r.time || ""; }
 function getRing(r) { const v = r.RingTimeSecond ?? r.ringTimeSecond; return v != null ? parseInt(v) : null; }
 function getDur(r) { const v = r.CallTimeSecond ?? r.callTimeSecond; return v != null ? parseInt(v) : null; }
-function getDir(r) { return r.Direction || r.direction || ""; }
+function getDir(r) { return r.Direction || r.direction || r.EventType || ""; }
+function getCallID(r) { return r.CallID || r.callID || r.callId || ""; }
 function getDept(ext) { return extDeptMap[String(ext)] || "—"; }
 function showErr(msg) { const el = document.getElementById("globalErr"); el.textContent = msg; el.style.display = "block"; }
+
+// ---- SES KAYDI ----
+async function playAudio(callID, btn) {
+  if (!callID) { alert("Bu görüşme için ses kaydı bulunamadı."); return; }
+  const company = document.getElementById("unitSelect").value;
+  btn.disabled = true;
+  btn.innerHTML = '<i class="ti ti-loader"></i>';
+  try {
+    const res = await fetch(INVEKTO_API, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ filterType: 4, callID: callID, companyCode: company })
+    });
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    const json = await res.json();
+    if (!json.Status) throw new Error(json.Message || "Ses kaydı alınamadı");
+    const audioUrl = Array.isArray(json.Data) ? json.Data[0] : json.Data;
+    if (!audioUrl) throw new Error("Ses kaydı bulunamadı");
+    showAudioPlayer(audioUrl, btn);
+  } catch (e) {
+    alert("Ses kaydı hatası: " + e.message);
+    btn.disabled = false;
+    btn.innerHTML = '<i class="ti ti-player-play"></i>';
+  }
+}
+
+function showAudioPlayer(url, btn) {
+  const row = btn.closest("tr");
+  const existingPlayer = row.querySelector(".audio-player-row");
+  if (existingPlayer) { existingPlayer.remove(); btn.disabled = false; btn.innerHTML = '<i class="ti ti-player-play"></i>'; return; }
+  const colCount = row.querySelectorAll("td").length;
+  const playerRow = document.createElement("tr");
+  playerRow.className = "audio-player-row";
+  playerRow.innerHTML = `<td colspan="${colCount}" style="background:var(--navy3);padding:10px 16px">
+    <div style="display:flex;align-items:center;gap:10px">
+      <i class="ti ti-volume" style="color:var(--accent);font-size:16px"></i>
+      <audio controls style="flex:1;height:32px" src="${url}">Tarayıcınız ses oynatmayı desteklemiyor.</audio>
+      <button class="btn-icon" onclick="this.closest('tr').remove()" title="Kapat"><i class="ti ti-x"></i></button>
+    </div>
+  </td>`;
+  row.insertAdjacentElement("afterend", playerRow);
+  btn.disabled = false;
+  btn.innerHTML = '<i class="ti ti-player-stop"></i>';
+}
 
 // ---- EXT-DEPT MAP (Supabase) ----
 async function loadExtMap() {
@@ -42,9 +87,7 @@ async function fetchAll() {
   if (!date) { showErr("Lütfen tarih seçin."); return; }
   document.getElementById("globalErr").style.display = "none";
   setLoading();
-
   await loadExtMap();
-
   try {
     const res = await fetch(INVEKTO_API, {
       method: "POST",
@@ -64,12 +107,12 @@ async function fetchAll() {
 }
 
 function setLoading() {
-  [["gorusmeTbody",8],["performansTbody",8],["denetimTbody",8],["suptbody",7]].forEach(([id,c]) => {
+  [["gorusmeTbody",9],["performansTbody",8],["denetimTbody",8],["suptbody",8]].forEach(([id,c]) => {
     document.getElementById(id).innerHTML = `<tr><td colspan="${c}" class="empty-td">Yükleniyor...</td></tr>`;
   });
 }
 function setEmpty() {
-  [["gorusmeTbody",8],["performansTbody",8],["denetimTbody",8],["suptbody",7]].forEach(([id,c]) => {
+  [["gorusmeTbody",9],["performansTbody",8],["denetimTbody",8],["suptbody",8]].forEach(([id,c]) => {
     document.getElementById(id).innerHTML = `<tr><td colspan="${c}" class="empty-td">Veri bulunamadı.</td></tr>`;
   });
 }
@@ -85,7 +128,7 @@ function renderAll() {
 // ---- DASHBOARD ----
 function renderDashboard() {
   const total = allData.length;
-  const out = allData.filter(r => { const d = (getDir(r)||"").toLowerCase(); return d.includes("out") || d === "1"; }).length;
+  const out = allData.filter(r => { const d = String(getDir(r)); return d === "1" || d.toLowerCase().includes("out"); }).length;
   const miss = allData.filter(r => getDur(r) === 0).length;
   const durs = allData.map(r => getDur(r)).filter(v => v != null && v > 0);
   const avg = durs.length ? Math.round(durs.reduce((a,b)=>a+b,0)/durs.length) : 0;
@@ -127,16 +170,20 @@ function renderChart() {
 // ---- GÖRÜŞMELER ----
 function renderGorusmeler() {
   const filtered = currentDept === "Tümü" ? allData : allData.filter(r => getDept(getExt(r)) === currentDept);
-  if (!filtered.length) { document.getElementById("gorusmeTbody").innerHTML='<tr><td colspan="8" class="empty-td">Bu departmanda veri yok.</td></tr>'; return; }
+  if (!filtered.length) { document.getElementById("gorusmeTbody").innerHTML='<tr><td colspan="9" class="empty-td">Bu departmanda veri yok.</td></tr>'; return; }
+  const dirLabel = d => { const s = String(d); if(s==="1") return "Giden"; if(s==="2") return "Gelen"; if(s==="3") return "Kaçan"; return d||"—"; };
   document.getElementById("gorusmeTbody").innerHTML = filtered.map(r => {
-    const ring = getRing(r); const dur = getDur(r);
+    const ring = getRing(r); const dur = getDur(r); const callID = getCallID(r);
     return `<tr>
-      <td>${getExt(r)}</td><td>${getName(r)}</td>
+      <td>${getExt(r)}</td>
+      <td class="td-bold">${getName(r)}</td>
       <td><span class="badge badge-info">${getDept(getExt(r))}</span></td>
-      <td>${getDir(r)||"—"}</td><td>${fmtT(getTime(r))}</td>
+      <td>${dirLabel(getDir(r))}</td>
+      <td>${fmtT(getTime(r))}</td>
       <td>${dur??'—'}</td>
       <td>${ring===0?'<span class="badge badge-warn">0</span>':(ring!=null?ring:"—")}</td>
       <td>${dur===0?'<span class="badge badge-fail">Cevaplanmadı</span>':'<span class="badge badge-ok">Bağlandı</span>'}</td>
+      <td>${callID?`<button class="btn-icon" onclick="playAudio('${callID}',this)" title="Ses kaydını dinle"><i class="ti ti-player-play"></i></button>`:'<span class="td-muted">—</span>'}</td>
     </tr>`;
   }).join("");
 }
@@ -149,8 +196,8 @@ function renderPerformans() {
     if (!byExt[ext]) byExt[ext] = {ext, name:getName(r), total:0, totalDur:0, out:0, inDur:0, miss:0};
     byExt[ext].total++;
     const dur = getDur(r)||0; byExt[ext].totalDur += dur;
-    const dir = (getDir(r)||"").toLowerCase();
-    if (dir.includes("out")||dir==="1") byExt[ext].out++; else byExt[ext].inDur += dur;
+    const dir = String(getDir(r));
+    if (dir==="1"||dir.toLowerCase().includes("out")) byExt[ext].out++; else byExt[ext].inDur += dur;
     if (dur===0) byExt[ext].miss++;
   });
   const rows = Object.values(byExt).sort((a,b)=>b.total-a.total);
@@ -216,13 +263,17 @@ function renderDenetim() {
 // ---- ŞÜPHELİ ----
 function renderSupheli() {
   const sup = allData.filter(r => getRing(r) === 0);
-  if (!sup.length) { document.getElementById("suptbody").innerHTML='<tr><td colspan="7" class="empty-td">Şüpheli çağrı bulunamadı.</td></tr>'; return; }
-  document.getElementById("suptbody").innerHTML = sup.map(r => `<tr>
-    <td>${getExt(r)}</td><td class="td-bold">${getName(r)}</td>
-    <td><span class="badge badge-info">${getDept(getExt(r))}</span></td>
-    <td>${fmtT(getTime(r))}</td><td>${getDir(r)||"—"}</td>
-    <td><span class="badge badge-warn">0</span></td><td>${getDur(r)??'—'}</td>
-  </tr>`).join("");
+  if (!sup.length) { document.getElementById("suptbody").innerHTML='<tr><td colspan="8" class="empty-td">Şüpheli çağrı bulunamadı.</td></tr>'; return; }
+  document.getElementById("suptbody").innerHTML = sup.map(r => {
+    const callID = getCallID(r);
+    return `<tr>
+      <td>${getExt(r)}</td><td class="td-bold">${getName(r)}</td>
+      <td><span class="badge badge-info">${getDept(getExt(r))}</span></td>
+      <td>${fmtT(getTime(r))}</td><td>${getDir(r)||"—"}</td>
+      <td><span class="badge badge-warn">0</span></td><td>${getDur(r)??'—'}</td>
+      <td>${callID?`<button class="btn-icon" onclick="playAudio('${callID}',this)" title="Ses kaydını dinle"><i class="ti ti-player-play"></i></button>`:'<span class="td-muted">—</span>'}</td>
+    </tr>`;
+  }).join("");
 }
 
 // ---- AYARLAR - EXT MAP ----
