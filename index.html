@@ -1,117 +1,261 @@
-function showPage(id, el) {
-  document.querySelectorAll(".page").forEach(p => p.classList.remove("active"));
-  document.querySelectorAll(".nav-item").forEach(n => n.classList.remove("active"));
-  document.getElementById("page-" + id).classList.add("active");
-  el.classList.add("active");
-  if (id === "kullanici") loadUsers();
-}
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Çağrı Denetim Paneli</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
 
-function switchChart(mode, el) {
-  chartMode = mode;
-  document.querySelectorAll(".ctab").forEach(t => t.classList.remove("active"));
-  el.classList.add("active");
-  renderChart();
-}
+<!-- GİRİŞ EKRANI -->
+<div id="loginScreen" class="login-screen">
+  <div class="login-card">
+    <div class="login-logo">
+      <i class="ti ti-phone-call"></i>
+      <span>Çağrı Denetim</span>
+    </div>
+    <h2>Giriş yap</h2>
+    <div id="loginErr" class="err" style="display:none"></div>
+    <div class="form-group">
+      <label>E-posta</label>
+      <input type="email" id="loginEmail" placeholder="ad@sirket.com">
+    </div>
+    <div class="form-group">
+      <label>Şifre</label>
+      <input type="password" id="loginPassword" placeholder="••••••••">
+    </div>
+    <button class="btn-primary" onclick="doLogin()">
+      <i class="ti ti-login"></i> Giriş yap
+    </button>
+  </div>
+</div>
 
-function filterDept(dept, el) {
-  currentDept = dept;
-  document.querySelectorAll(".dtab").forEach(t => t.classList.remove("active"));
-  el.classList.add("active");
-  renderGorusmeler();
-}
+<!-- ANA UYGULAMA -->
+<div id="appScreen" class="app" style="display:none">
 
-function exportExcel(type) {
-  if (!allData.length) { alert("Önce veri yükleyin."); return; }
+  <!-- TOPBAR -->
+  <div class="topbar">
+    <div class="logo"><i class="ti ti-phone-call"></i>Çağrı Denetim</div>
+    <div class="nav-item active" onclick="showPage('dashboard',this)"><i class="ti ti-layout-dashboard"></i>Dashboard</div>
+    <div class="nav-item" onclick="showPage('gorusmeler',this)"><i class="ti ti-messages"></i>Görüşmeler</div>
+    <div class="nav-item" onclick="showPage('performans',this)"><i class="ti ti-chart-bar"></i>Performans</div>
+    <div class="nav-item" onclick="showPage('denetim',this)"><i class="ti ti-shield-check"></i>Denetim</div>
+    <div class="nav-item" onclick="showPage('supheli',this)"><i class="ti ti-alert-triangle"></i>Şüpheli</div>
+    <div class="nav-item" onclick="showPage('ayarlar',this)"><i class="ti ti-settings"></i>Ayarlar</div>
+    <div class="nav-item" id="navKullanici" onclick="showPage('kullanici',this)" style="display:none"><i class="ti ti-users"></i>Kullanıcılar</div>
+    <div class="topbar-right">
+      <select class="unit-select" id="unitSelect">
+        <option value="59048767">Birim 1</option>
+        <option value="89571052">Birim 2</option>
+      </select>
+      <input type="date" class="date-input" id="startDate">
+      <span style="color:var(--text3);font-size:12px">—</span>
+      <input type="date" class="date-input" id="endDate">
+      <input type="time" class="date-input" id="startTime" value="00:00">
+      <span style="color:var(--text3);font-size:12px">—</span>
+      <input type="time" class="date-input" id="endTime" value="23:59">
+      <button class="btn-fetch" onclick="fetchAll()"><i class="ti ti-refresh"></i>Getir</button>
+      <div class="user-badge" id="userBadge"></div>
+      <button class="btn-logout" onclick="doLogout()" title="Çıkış"><i class="ti ti-logout"></i></button>
+    </div>
+  </div>
 
-  const startDate = document.getElementById("startDate")?.value || "";
-  const endDate = document.getElementById("endDate")?.value || "";
-  const { start, end } = getTimeFilter();
-  const dirLabel = d => { const s = String(d); if(s==="1") return "Giden"; if(s==="2") return "Gelen"; if(s==="3") return "Kaçan"; return d||"—"; };
+  <div class="content">
+    <div id="globalErr" class="err" style="display:none"></div>
 
-  let rows = [];
-  let sheetName = "";
-  let fileName = "";
+    <!-- DASHBOARD -->
+    <div class="page active" id="page-dashboard">
+      <div class="metric-row">
+        <div class="metric"><div class="metric-label"><i class="ti ti-phone"></i>Toplam çağrı</div><div class="metric-value" id="d-total">—</div></div>
+        <div class="metric"><div class="metric-label"><i class="ti ti-clock"></i>Ort. süre (sn)</div><div class="metric-value" id="d-avg">—</div></div>
+        <div class="metric"><div class="metric-label"><i class="ti ti-phone-outgoing"></i>Giden</div><div class="metric-value green" id="d-out">—</div></div>
+        <div class="metric"><div class="metric-label"><i class="ti ti-phone-incoming"></i>Gelen</div><div class="metric-value" id="d-in">—</div></div>
+        <div class="metric"><div class="metric-label"><i class="ti ti-phone-x"></i>Ulaşılamayan</div><div class="metric-value red" id="d-miss">—</div></div>
+      </div>
+      <div class="card">
+        <div class="card-title"><i class="ti ti-chart-line"></i>Çağrı grafiği</div>
+        <div class="chart-tabs">
+          <div class="ctab active" onclick="switchChart('hourly',this)">Saatlik</div>
+          <div class="ctab" onclick="switchChart('daily',this)">Günlük</div>
+          <div class="ctab" onclick="switchChart('weekly',this)">Haftalık</div>
+          <div class="ctab" onclick="switchChart('monthly',this)">Aylık</div>
+        </div>
+        <div style="position:relative;height:240px"><canvas id="mainChart" role="img" aria-label="Çağrı grafiği">Çağrı verisi yükleniyor.</canvas></div>
+      </div>
+    </div>
 
-  if (type === "gorusmeler") {
-    sheetName = "Görüşmeler";
-    fileName = `gorusmeler_${startDate}_${endDate}.xlsx`;
-    rows = [["Dahili","Personel","Departman","Yön","Saat","Süre (sn)","Çaldırma (sn)","Durum"]];
-    allData.filter(r => inTimeRange(r) && (currentDept === "Tümü" || getDept(getExt(r)) === currentDept)).forEach(r => {
-      rows.push([
-        getExt(r), getName(r), getDept(getExt(r)), dirLabel(getDir(r)),
-        fmtT(getTime(r)), getDur(r)??0, getRing(r)??0,
-        getDur(r)===0?"Cevaplanmadı":"Bağlandı"
-      ]);
-    });
-  }
+    <!-- GÖRÜŞMELER -->
+    <div class="page" id="page-gorusmeler">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px">
+        <div class="dept-tabs" style="margin-bottom:0">
+          <div class="dtab active" onclick="filterDept('Tümü',this)">Tümü</div>
+          <div class="dtab" onclick="filterDept('Dış Data',this)">Dış Data</div>
+          <div class="dtab" onclick="filterDept('Karşılama',this)">Karşılama</div>
+          <div class="dtab" onclick="filterDept('Dönüşüm',this)">Dönüşüm</div>
+          <div class="dtab" onclick="filterDept('Yatırımlı Pasif',this)">Yatırımlı Pasif</div>
+          <div class="dtab" onclick="filterDept('Retention',this)">Retention</div>
+        </div>
+        <button class="btn-save" onclick="exportExcel('gorusmeler')"><i class="ti ti-file-spreadsheet"></i> Excel indir</button>
+      </div>
+      <div class="card" style="padding:0;overflow:hidden">
+        <div style="overflow-x:auto">
+          <table>
+            <thead><tr><th>Dahili</th><th>Personel</th><th>Departman</th><th>Yön</th><th>Saat</th><th>Süre (sn)</th><th>Çaldırma (sn)</th><th>Durum</th><th>Ses</th></tr></thead>
+            <tbody id="gorusmeTbody"><tr><td colspan="9" class="empty-td">Tarih seçip "Getir" butonuna tıklayın.</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
 
-  if (type === "performans") {
-    sheetName = "Performans";
-    fileName = `performans_${startDate}_${endDate}.xlsx`;
-    rows = [["Dahili","Personel","Departman","Toplam Arama","Konuşma Süresi (sn)","Giden Arama","Gelen Süre (sn)","Ulaşılamayan"]];
-    const byExt = {};
-    allData.filter(inTimeRange).forEach(r => {
-      const ext = getExt(r);
-      if (!byExt[ext]) byExt[ext] = {ext, name:getName(r), total:0, totalDur:0, out:0, inDur:0, miss:0};
-      byExt[ext].total++;
-      const dur = getDur(r)||0; byExt[ext].totalDur += dur;
-      const dir = String(getDir(r));
-      if (dir==="1"||dir.toLowerCase().includes("out")) byExt[ext].out++; else byExt[ext].inDur += dur;
-      if (dur===0) byExt[ext].miss++;
-    });
-    Object.values(byExt).sort((a,b)=>b.total-a.total).forEach(r => {
-      rows.push([r.ext, r.name, getDept(r.ext), r.total, Math.round(r.totalDur), r.out, Math.round(r.inDur), r.miss]);
-    });
-  }
+    <!-- PERFORMANS -->
+    <div class="page" id="page-performans">
+      <div style="display:flex;justify-content:flex-end;margin-bottom:10px">
+        <button class="btn-save" onclick="exportExcel('performans')"><i class="ti ti-file-spreadsheet"></i> Excel indir</button>
+      </div>
+      <div class="card" style="padding:0;overflow:hidden">
+        <div style="overflow-x:auto">
+          <table>
+            <thead><tr><th>Dahili</th><th>Personel</th><th>Departman</th><th>Toplam arama</th><th>Konuşma süresi (sn)</th><th>Giden arama</th><th>Gelen süre (sn)</th><th>Ulaşılamayan</th></tr></thead>
+            <tbody id="performansTbody"><tr><td colspan="8" class="empty-td">Tarih seçip "Getir" butonuna tıklayın.</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
 
-  if (type === "denetim") {
-    sheetName = "Denetim";
-    fileName = `denetim_${startDate}_${endDate}.xlsx`;
-    rows = [["Personel","Departman","İlk Çağrı","Son Çağrı","Toplam","Sıfır Çaldırma","Durum","İhlaller"]];
-    const byExt = {};
-    allData.filter(inTimeRange).forEach(r => {
-      const ext = getExt(r);
-      if (!byExt[ext]) byExt[ext] = {ext, name:getName(r), calls:[]};
-      byExt[ext].calls.push(r);
-    });
-    Object.values(byExt).forEach(p => {
-      const dept = getDept(p.ext);
-      const rule = RULES[dept];
-      const sorted = p.calls.slice().sort((a,b)=>getTime(a).localeCompare(getTime(b)));
-      const violations = []; let zeroRing = 0;
-      const times = sorted.map(c=>getTime(c)).filter(Boolean);
-      if (!times.length) return;
-      sorted.forEach(c=>{ if(getRing(c)===0)zeroRing++; });
-      if (zeroRing>0) violations.push(zeroRing+" adet sıfır çaldırma");
-      if (rule) {
-        if (toMin(times[0])>toMin(rule.ilk)) violations.push(`İlk çağrı ${fmtT(times[0])} (en geç ${rule.ilk})`);
-        const oOnce = times.filter(t=>toMin(t)<=toMin(rule.ogleOnce));
-        if (oOnce.length>0&&toMin(oOnce[oOnce.length-1])<toMin(rule.ogleOnce)) violations.push(`Öğle öncesi erken bırakılmış`);
-        const oSonra = times.filter(t=>toMin(t)>toMin(rule.ogleOnce));
-        if (oSonra.length>0&&toMin(oSonra[0])>toMin(rule.ogleSonrasi)) violations.push(`Öğle sonrası geç`);
-        if (toMin(times[times.length-1])<toMin(rule.gunSonu)) violations.push(`Gün sonu erken bırakılmış`);
-        [times.filter(t=>toMin(t)<=toMin(rule.ogleOnce)), times.filter(t=>toMin(t)>=toMin(rule.ogleSonrasi))].forEach((list,i)=>{
-          for(let j=1;j<list.length;j++){const diff=toMin(list[j])-toMin(list[j-1]);if(diff>rule.aralik)violations.push(`${i===0?"Sabah":"Öğleden sonra"} aralık ${diff}dk`);}
-        });
-      }
-      rows.push([p.name, dept, fmtT(times[0]), fmtT(times[times.length-1]), p.calls.length, zeroRing, violations.length===0?"Uygun":"İhlal var", violations.join("; ")]);
-    });
-  }
+    <!-- DENETİM -->
+    <div class="page" id="page-denetim">
+      <div style="display:flex;justify-content:flex-end;margin-bottom:10px">
+        <button class="btn-save" onclick="exportExcel('denetim')"><i class="ti ti-file-spreadsheet"></i> Excel indir</button>
+      </div>
+      <div class="metric-row">
+        <div class="metric"><div class="metric-label">Toplam personel</div><div class="metric-value" id="dn-total">—</div></div>
+        <div class="metric"><div class="metric-label">Uygun</div><div class="metric-value green" id="dn-ok">—</div></div>
+        <div class="metric"><div class="metric-label">İhlal var</div><div class="metric-value red" id="dn-fail">—</div></div>
+        <div class="metric"><div class="metric-label">Sıfır çaldırma</div><div class="metric-value amber" id="dn-zero">—</div></div>
+      </div>
+      <div class="card" style="padding:0;overflow:hidden">
+        <div style="overflow-x:auto">
+          <table>
+            <thead><tr><th>Personel</th><th>Departman</th><th>İlk çağrı</th><th>Son çağrı</th><th>Toplam</th><th>Sıfır çaldırma</th><th>Durum</th><th>İhlaller</th></tr></thead>
+            <tbody id="denetimTbody"><tr><td colspan="8" class="empty-td">Tarih seçip "Getir" butonuna tıklayın.</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
 
-  if (type === "supheli") {
-    sheetName = "Şüpheli";
-    fileName = `supheli_${startDate}_${endDate}.xlsx`;
-    rows = [["Dahili","Personel","Departman","Saat","Yön","Çaldırma (sn)","Süre (sn)"]];
-    allData.filter(r => inTimeRange(r) && getRing(r) === 0).forEach(r => {
-      rows.push([getExt(r), getName(r), getDept(getExt(r)), fmtT(getTime(r)), dirLabel(getDir(r)), 0, getDur(r)??0]);
-    });
-  }
+    <!-- ŞÜPHELİ -->
+    <div class="page" id="page-supheli">
+      <div style="display:flex;justify-content:flex-end;margin-bottom:10px">
+        <button class="btn-save" onclick="exportExcel('supheli')"><i class="ti ti-file-spreadsheet"></i> Excel indir</button>
+      </div>
+      <div class="card">
+        <div class="card-title"><i class="ti ti-alert-circle"></i>Çaldır-kapat şüphesi (00:00 çaldırma)</div>
+        <div style="overflow-x:auto">
+          <table>
+            <thead><tr><th>Dahili</th><th>Personel</th><th>Departman</th><th>Saat</th><th>Yön</th><th>Çaldırma (sn)</th><th>Süre (sn)</th><th>Ses</th></tr></thead>
+            <tbody id="suptbody"><tr><td colspan="8" class="empty-td">Tarih seçip "Getir" butonuna tıklayın.</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
 
-  if (rows.length <= 1) { alert("Dışa aktarılacak veri yok."); return; }
+    <!-- AYARLAR -->
+    <div class="page" id="page-ayarlar">
+      <div class="card">
+        <div class="card-title"><i class="ti ti-users"></i>Dahili — departman ataması</div>
+        <div id="extSettings"><div class="empty-td" style="padding:20px">Veri yüklemek için önce tarih seçip "Getir" butonuna tıklayın.</div></div>
+        <button class="btn-save" onclick="saveExtMap()"><i class="ti ti-device-floppy"></i>Kaydet</button>
+      </div>
+      <div class="card" style="margin-top:12px">
+        <div class="card-title"><i class="ti ti-list-check"></i>Departman kuralları</div>
+        <div style="overflow-x:auto">
+          <table>
+            <thead><tr><th>Departman</th><th>İlk çağrı</th><th>Öğle öncesi son</th><th>Öğle sonrası başlangıç</th><th>Gün sonu son</th><th>Maks. aralık (dk)</th></tr></thead>
+            <tbody>
+              <tr><td class="td-bold">Dış Data</td><td>10:15</td><td>13:50</td><td>15:15</td><td>18:50</td><td>20</td></tr>
+              <tr><td class="td-bold">Karşılama</td><td>11:15</td><td>13:45</td><td>15:15</td><td>18:45</td><td>30</td></tr>
+              <tr><td class="td-bold">Dönüşüm</td><td>10:30</td><td>13:50</td><td>15:15</td><td>18:50</td><td>30</td></tr>
+              <tr><td class="td-bold">Yatırımlı Pasif</td><td>10:30</td><td>13:50</td><td>15:20</td><td>19:00</td><td>20</td></tr>
+              <tr><td class="td-bold">Retention</td><td colspan="4" class="td-muted">Kural yok</td><td>—</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
 
-  const wb = XLSX.utils.book_new();
-  const ws = XLSX.utils.aoa_to_sheet(rows);
-  ws["!cols"] = rows[0].map(() => ({ wch: 20 }));
-  XLSX.utils.book_append_sheet(wb, ws, sheetName);
-  XLSX.writeFile(wb, fileName);
-}
+    <!-- KULLANICI YÖNETİMİ -->
+    <div class="page" id="page-kullanici">
+      <div class="card">
+        <div class="card-title" style="justify-content:space-between">
+          <span><i class="ti ti-users"></i>Kullanıcı yönetimi</span>
+          <button class="btn-save" onclick="showAddUser()"><i class="ti ti-plus"></i>Yeni kullanıcı</button>
+        </div>
+        <div id="addUserForm" style="display:none;background:var(--navy3);border-radius:8px;padding:16px;margin-bottom:16px">
+          <div class="form-row">
+            <div class="form-group">
+              <label>Ad soyad</label>
+              <input type="text" id="newName" placeholder="Ahmet Yılmaz">
+            </div>
+            <div class="form-group">
+              <label>E-posta</label>
+              <input type="email" id="newEmail" placeholder="ahmet@sirket.com">
+            </div>
+            <div class="form-group">
+              <label>Şifre</label>
+              <input type="password" id="newPass" placeholder="En az 6 karakter">
+            </div>
+            <div class="form-group">
+              <label>Rol</label>
+              <select id="newRole">
+                <option value="denetim">Denetim personeli</option>
+                <option value="departman_lideri">Departman lideri</option>
+                <option value="admin">Admin</option>
+              </select>
+            </div>
+          </div>
+          <div id="addUserErr" class="err" style="display:none"></div>
+          <div style="display:flex;gap:8px;margin-top:12px">
+            <button class="btn-save" onclick="addUser()"><i class="ti ti-check"></i>Ekle</button>
+            <button class="btn-cancel" onclick="hideAddUser()"><i class="ti ti-x"></i>İptal</button>
+          </div>
+        </div>
+        <div style="overflow-x:auto">
+          <table>
+            <thead><tr><th>Ad soyad</th><th>E-posta</th><th>Rol</th><th>Oluşturulma</th><th>İşlemler</th></tr></thead>
+            <tbody id="userTbody"><tr><td colspan="5" class="empty-td">Yükleniyor...</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- Şifre değiştirme modal -->
+<div id="passModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:1000;align-items:center;justify-content:center">
+  <div class="modal-card">
+    <div class="modal-title">Şifre değiştir</div>
+    <div id="passModalErr" class="err" style="display:none"></div>
+    <input type="hidden" id="passUserId">
+    <div class="form-group">
+      <label>Yeni şifre</label>
+      <input type="password" id="newPassModal" placeholder="En az 6 karakter">
+    </div>
+    <div style="display:flex;gap:8px;margin-top:12px">
+      <button class="btn-save" onclick="changePassword()"><i class="ti ti-key"></i>Kaydet</button>
+      <button class="btn-cancel" onclick="closePassModal()"><i class="ti ti-x"></i>İptal</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.0/dist/umd/supabase.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="js/config.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/data.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
