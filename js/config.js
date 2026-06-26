@@ -1,7 +1,7 @@
 // =====================================================
 // SUPABASE AYARLARI - Buraya kendi bilgilerinizi girin
 // =====================================================
-const SUPABASE_URL = "https://xirfcajiiiodxtqutqpw.supabase.co/rest/v1/";
+const SUPABASE_URL = "https://xirfcajiiiodxtqutqpw.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhpcmZjYWppaWlvZHh0cXV0cXB3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI0NjczNzMsImV4cCI6MjA5ODA0MzM3M30.b8REc4EvrrV_2xReAF1WcnKlO3WOYpvC9Vd4vRDSJDU";
 
 // Invekto API
