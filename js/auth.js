@@ -50,7 +50,8 @@ function initApp() {
   }
 
   const today = new Date().toISOString().split("T")[0];
-  document.getElementById("dateInput").value = today;
+  document.getElementById("startDate").value = today;
+document.getElementById("endDate").value = today;
 }
 
 // ---- KULLANICI YÖNETİMİ ----
