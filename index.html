@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Çağrı Denetim Paneli</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<!-- GİRİŞ EKRANI -->
+<div id="loginScreen" class="login-screen">
+  <div class="login-card">
+    <div class="login-logo">
+      <i class="ti ti-phone-call"></i>
+      <span>Çağrı Denetim</span>
+    </div>
+    <h2>Giriş yap</h2>
+    <div id="loginErr" class="err" style="display:none"></div>
+    <div class="form-group">
+      <label>E-posta</label>
+      <input type="email" id="loginEmail" placeholder="ad@sirket.com">
+    </div>
+    <div class="form-group">
+      <label>Şifre</label>
+      <input type="password" id="loginPassword" placeholder="••••••••">
+    </div>
+    <button class="btn-primary" onclick="doLogin()">
+      <i class="ti ti-login"></i> Giriş yap
+    </button>
+  </div>
+</div>
+
+<!-- ANA UYGULAMA -->
+<div id="appScreen" class="app" style="display:none">
+
+  <!-- TOPBAR -->
+  <div class="topbar">
+    <div class="logo"><i class="ti ti-phone-call"></i>Çağrı Denetim</div>
+    <div class="nav-item active" onclick="showPage('dashboard',this)"><i class="ti ti-layout-dashboard"></i>Dashboard</div>
+    <div class="nav-item" onclick="showPage('gorusmeler',this)"><i class="ti ti-messages"></i>Görüşmeler</div>
+    <div class="nav-item" onclick="showPage('performans',this)"><i class="ti ti-chart-bar"></i>Performans</div>
+    <div class="nav-item" onclick="showPage('denetim',this)"><i class="ti ti-shield-check"></i>Denetim</div>
+    <div class="nav-item" onclick="showPage('supheli',this)"><i class="ti ti-alert-triangle"></i>Şüpheli</div>
+    <div class="nav-item" onclick="showPage('ayarlar',this)"><i class="ti ti-settings"></i>Ayarlar</div>
+    <div class="nav-item" id="navKullanici" onclick="showPage('kullanici',this)" style="display:none"><i class="ti ti-users"></i>Kullanıcılar</div>
+    <div class="topbar-right">
+      <select class="unit-select" id="unitSelect">
+        <option value="59048767">Birim 1</option>
+        <option value="89571052">Birim 2</option>
+      </select>
+      <input type="date" class="date-input" id="dateInput">
+      <button class="btn-fetch" onclick="fetchAll()"><i class="ti ti-refresh"></i>Getir</button>
+      <div class="user-badge" id="userBadge"></div>
+      <button class="btn-logout" onclick="doLogout()" title="Çıkış"><i class="ti ti-logout"></i></button>
+    </div>
+  </div>
+
+  <div class="content">
+    <div id="globalErr" class="err" style="display:none"></div>
+
+    <!-- DASHBOARD -->
+    <div class="page active" id="page-dashboard">
+      <div class="metric-row">
+        <div class="metric"><div class="metric-label"><i class="ti ti-phone"></i>Toplam çağrı</div><div class="metric-value" id="d-total">—</div></div>
+        <div class="metric"><div class="metric-label"><i class="ti ti-clock"></i>Ort. süre (sn)</div><div class="metric-value" id="d-avg">—</div></div>
+        <div class="metric"><div class="metric-label"><i class="ti ti-phone-outgoing"></i>Giden</div><div class="metric-value green" id="d-out">—</div></div>
+        <div class="metric"><div class="metric-label"><i class="ti ti-phone-incoming"></i>Gelen</div><div class="metric-value" id="d-in">—</div></div>
+        <div class="metric"><div class="metric-label"><i class="ti ti-phone-x"></i>Ulaşılamayan</div><div class="metric-value red" id="d-miss">—</div></div>
+      </div>
+      <div class="card">
+        <div class="card-title"><i class="ti ti-chart-line"></i>Çağrı grafiği</div>
+        <div class="chart-tabs">
+          <div class="ctab active" onclick="switchChart('hourly',this)">Saatlik</div>
+          <div class="ctab" onclick="switchChart('daily',this)">Günlük</div>
+          <div class="ctab" onclick="switchChart('weekly',this)">Haftalık</div>
+          <div class="ctab" onclick="switchChart('monthly',this)">Aylık</div>
+        </div>
+        <div style="position:relative;height:240px"><canvas id="mainChart" role="img" aria-label="Çağrı grafiği">Çağrı verisi yükleniyor.</canvas></div>
+      </div>
+    </div>
+
+    <!-- GÖRÜŞMELER -->
+    <div class="page" id="page-gorusmeler">
+      <div class="dept-tabs">
+        <div class="dtab active" onclick="filterDept('Tümü',this)">Tümü</div>
+        <div class="dtab" onclick="filterDept('Dış Data',this)">Dış Data</div>
+        <div class="dtab" onclick="filterDept('Karşılama',this)">Karşılama</div>
+        <div class="dtab" onclick="filterDept('Dönüşüm',this)">Dönüşüm</div>
+        <div class="dtab" onclick="filterDept('Yatırımlı Pasif',this)">Yatırımlı Pasif</div>
+        <div class="dtab" onclick="filterDept('Retention',this)">Retention</div>
+      </div>
+      <div class="card" style="padding:0;overflow:hidden">
+        <div style="overflow-x:auto">
+          <table>
+            <thead><tr><th>Dahili</th><th>Personel</th><th>Departman</th><th>Yön</th><th>Saat</th><th>Süre (sn)</th><th>Çaldırma (sn)</th><th>Durum</th></tr></thead>
+            <tbody id="gorusmeTbody"><tr><td colspan="8" class="empty-td">Tarih seçip "Getir" butonuna tıklayın.</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- PERFORMANS -->
+    <div class="page" id="page-performans">
+      <div class="card" style="padding:0;overflow:hidden">
+        <div style="overflow-x:auto">
+          <table>
+            <thead><tr><th>Dahili</th><th>Personel</th><th>Departman</th><th>Toplam arama</th><th>Konuşma süresi (sn)</th><th>Giden arama</th><th>Gelen süre (sn)</th><th>Ulaşılamayan</th></tr></thead>
+            <tbody id="performansTbody"><tr><td colspan="8" class="empty-td">Tarih seçip "Getir" butonuna tıklayın.</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- DENETİM -->
+    <div class="page" id="page-denetim">
+      <div class="metric-row">
+        <div class="metric"><div class="metric-label">Toplam personel</div><div class="metric-value" id="dn-total">—</div></div>
+        <div class="metric"><div class="metric-label">Uygun</div><div class="metric-value green" id="dn-ok">—</div></div>
+        <div class="metric"><div class="metric-label">İhlal var</div><div class="metric-value red" id="dn-fail">—</div></div>
+        <div class="metric"><div class="metric-label">Sıfır çaldırma</div><div class="metric-value amber" id="dn-zero">—</div></div>
+      </div>
+      <div class="card" style="padding:0;overflow:hidden">
+        <div style="overflow-x:auto">
+          <table>
+            <thead><tr><th>Personel</th><th>Departman</th><th>İlk çağrı</th><th>Son çağrı</th><th>Toplam</th><th>Sıfır çaldırma</th><th>Durum</th><th>İhlaller</th></tr></thead>
+            <tbody id="denetimTbody"><tr><td colspan="8" class="empty-td">Tarih seçip "Getir" butonuna tıklayın.</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ŞÜPHELİ -->
+    <div class="page" id="page-supheli">
+      <div class="card">
+        <div class="card-title"><i class="ti ti-alert-circle"></i>Çaldır-kapat şüphesi (00:00 çaldırma)</div>
+        <div style="overflow-x:auto">
+          <table>
+            <thead><tr><th>Dahili</th><th>Personel</th><th>Departman</th><th>Saat</th><th>Yön</th><th>Çaldırma (sn)</th><th>Süre (sn)</th></tr></thead>
+            <tbody id="suptbody"><tr><td colspan="7" class="empty-td">Tarih seçip "Getir" butonuna tıklayın.</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- AYARLAR -->
+    <div class="page" id="page-ayarlar">
+      <div class="card">
+        <div class="card-title"><i class="ti ti-users"></i>Dahili — departman ataması</div>
+        <div id="extSettings"><div class="empty-td" style="padding:20px">Veri yüklemek için önce tarih seçip "Getir" butonuna tıklayın.</div></div>
+        <button class="btn-save" onclick="saveExtMap()"><i class="ti ti-device-floppy"></i>Kaydet</button>
+      </div>
+      <div class="card" style="margin-top:12px">
+        <div class="card-title"><i class="ti ti-list-check"></i>Departman kuralları</div>
+        <div style="overflow-x:auto">
+          <table>
+            <thead><tr><th>Departman</th><th>İlk çağrı</th><th>Öğle öncesi son</th><th>Öğle sonrası başlangıç</th><th>Gün sonu son</th><th>Maks. aralık (dk)</th></tr></thead>
+            <tbody>
+              <tr><td class="td-bold">Dış Data</td><td>10:15</td><td>13:50</td><td>15:15</td><td>18:50</td><td>20</td></tr>
+              <tr><td class="td-bold">Karşılama</td><td>11:15</td><td>13:45</td><td>15:15</td><td>18:45</td><td>30</td></tr>
+              <tr><td class="td-bold">Dönüşüm</td><td>10:30</td><td>13:50</td><td>15:15</td><td>18:50</td><td>30</td></tr>
+              <tr><td class="td-bold">Yatırımlı Pasif</td><td>10:30</td><td>13:50</td><td>15:20</td><td>19:00</td><td>20</td></tr>
+              <tr><td class="td-bold">Retention</td><td colspan="4" class="td-muted">Kural yok</td><td>—</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- KULLANICI YÖNETİMİ -->
+    <div class="page" id="page-kullanici">
+      <div class="card">
+        <div class="card-title" style="justify-content:space-between">
+          <span><i class="ti ti-users"></i>Kullanıcı yönetimi</span>
+          <button class="btn-save" onclick="showAddUser()"><i class="ti ti-plus"></i>Yeni kullanıcı</button>
+        </div>
+
+        <!-- Yeni kullanıcı formu -->
+        <div id="addUserForm" style="display:none;background:var(--navy3);border-radius:8px;padding:16px;margin-bottom:16px">
+          <div class="form-row">
+            <div class="form-group">
+              <label>Ad soyad</label>
+              <input type="text" id="newName" placeholder="Ahmet Yılmaz">
+            </div>
+            <div class="form-group">
+              <label>E-posta</label>
+              <input type="email" id="newEmail" placeholder="ahmet@sirket.com">
+            </div>
+            <div class="form-group">
+              <label>Şifre</label>
+              <input type="password" id="newPass" placeholder="En az 6 karakter">
+            </div>
+            <div class="form-group">
+              <label>Rol</label>
+              <select id="newRole">
+                <option value="denetim">Denetim personeli</option>
+                <option value="departman_lideri">Departman lideri</option>
+                <option value="admin">Admin</option>
+              </select>
+            </div>
+          </div>
+          <div id="addUserErr" class="err" style="display:none"></div>
+          <div style="display:flex;gap:8px;margin-top:12px">
+            <button class="btn-save" onclick="addUser()"><i class="ti ti-check"></i>Ekle</button>
+            <button class="btn-cancel" onclick="hideAddUser()"><i class="ti ti-x"></i>İptal</button>
+          </div>
+        </div>
+
+        <div style="overflow-x:auto">
+          <table>
+            <thead><tr><th>Ad soyad</th><th>E-posta</th><th>Rol</th><th>Oluşturulma</th><th>İşlemler</th></tr></thead>
+            <tbody id="userTbody"><tr><td colspan="5" class="empty-td">Yükleniyor...</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- Şifre değiştirme modal -->
+<div id="passModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:1000;display:none;align-items:center;justify-content:center">
+  <div class="modal-card">
+    <div class="modal-title">Şifre değiştir</div>
+    <div id="passModalErr" class="err" style="display:none"></div>
+    <input type="hidden" id="passUserId">
+    <div class="form-group">
+      <label>Yeni şifre</label>
+      <input type="password" id="newPassModal" placeholder="En az 6 karakter">
+    </div>
+    <div style="display:flex;gap:8px;margin-top:12px">
+      <button class="btn-save" onclick="changePassword()"><i class="ti ti-key"></i>Kaydet</button>
+      <button class="btn-cancel" onclick="closePassModal()"><i class="ti ti-x"></i>İptal</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="js/config.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/data.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
