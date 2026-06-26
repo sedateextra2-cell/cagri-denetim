@@ -3,6 +3,7 @@ let extDeptMap = {};
 let currentDept = "Tümü";
 let mainChartInst = null;
 let chartMode = "hourly";
+let phoneFilter = "";
 
 // ---- HELPERS ----
 function toMin(t) { if (!t) return null; const p = t.split(":"); return parseInt(p[0]) * 60 + parseInt(p[1]); }
@@ -14,6 +15,7 @@ function getRing(r) { const v = r.RingTimeSecond ?? r.ringTimeSecond; return v !
 function getDur(r) { const v = r.CallTimeSecond ?? r.callTimeSecond; return v != null ? parseInt(v) : null; }
 function getDir(r) { return r.Direction || r.direction || r.EventType || ""; }
 function getCallID(r) { return r.CallID || r.callID || r.callId || ""; }
+function getPhone(r) { return r.Phone || r.phone || ""; }
 function getDept(ext) { return extDeptMap[String(ext)] || "—"; }
 function showErr(msg) { const el = document.getElementById("globalErr"); el.textContent = msg; el.style.display = "block"; }
 
@@ -27,6 +29,11 @@ function inTimeRange(r) {
   const { start, end } = getTimeFilter();
   const t = getTime(r).substring(0, 5);
   return t >= start && t <= end;
+}
+
+function inPhoneFilter(r) {
+  if (!phoneFilter) return true;
+  return getPhone(r).includes(phoneFilter);
 }
 
 // ---- SES KAYDI ----
@@ -56,8 +63,6 @@ async function playAudio(callID, btn) {
 
 function showAudioPlayer(url, btn) {
   const row = btn.closest("tr");
-  const existingPlayer = row.querySelector(".audio-player-row");
-  if (existingPlayer) { existingPlayer.remove(); btn.disabled = false; btn.innerHTML = '<i class="ti ti-player-play"></i>'; return; }
   const colCount = row.querySelectorAll("td").length;
   const playerRow = document.createElement("tr");
   playerRow.className = "audio-player-row";
@@ -71,6 +76,52 @@ function showAudioPlayer(url, btn) {
   row.insertAdjacentElement("afterend", playerRow);
   btn.disabled = false;
   btn.innerHTML = '<i class="ti ti-player-stop"></i>';
+}
+
+// ---- NOTLAR ----
+async function openNote(callID, personel) {
+  if (!callID) { alert("Bu görüşme için not eklenemez."); return; }
+  const modal = document.getElementById("noteModal");
+  document.getElementById("noteCallId").value = callID;
+  document.getElementById("notePersonel").textContent = personel;
+  document.getElementById("noteText").value = "";
+  document.getElementById("noteErr").style.display = "none";
+  document.getElementById("notesList").innerHTML = '<div style="color:var(--text3);font-size:12px">Yükleniyor...</div>';
+  modal.style.display = "flex";
+  await loadNotes(callID);
+}
+
+function closeNote() {
+  document.getElementById("noteModal").style.display = "none";
+}
+
+async function loadNotes(callID) {
+  const { data } = await _supabase.from("call_notes").select("*, profiles(full_name)").eq("call_id", callID).order("created_at");
+  const el = document.getElementById("notesList");
+  if (!data || !data.length) { el.innerHTML = '<div style="color:var(--text3);font-size:12px">Henüz not yok.</div>'; return; }
+  el.innerHTML = data.map(n => `
+    <div style="background:var(--navy3);border-radius:6px;padding:10px;margin-bottom:8px">
+      <div style="font-size:11px;color:var(--text3);margin-bottom:4px">
+        ${n.profiles?.full_name || "Bilinmiyor"} · ${new Date(n.created_at).toLocaleString("tr-TR")}
+      </div>
+      <div style="font-size:13px;color:var(--text1)">${n.note}</div>
+    </div>`).join("");
+}
+
+async function saveNote() {
+  const callID = document.getElementById("noteCallId").value;
+  const note = document.getElementById("noteText").value.trim();
+  const errEl = document.getElementById("noteErr");
+  errEl.style.display = "none";
+  if (!note) { errEl.textContent = "Not boş olamaz."; errEl.style.display = "block"; return; }
+  const company = document.getElementById("unitSelect").value;
+  const { error } = await _supabase.from("call_notes").insert({
+    company_code: company, call_id: callID, note,
+    created_by: (await _supabase.auth.getUser()).data.user?.id
+  });
+  if (error) { errEl.textContent = "Hata: " + error.message; errEl.style.display = "block"; return; }
+  document.getElementById("noteText").value = "";
+  await loadNotes(callID);
 }
 
 // ---- EXT-DEPT MAP (Supabase) ----
@@ -95,17 +146,18 @@ async function saveExtMap() {
 // ---- FETCH ----
 async function fetchAll() {
   const startDate = document.getElementById("startDate").value;
-const endDate = document.getElementById("endDate").value;
-const company = document.getElementById("unitSelect").value;
-if (!startDate || !endDate) { showErr("Lütfen başlangıç ve bitiş tarihi seçin."); return; }
+  const endDate = document.getElementById("endDate").value;
+  const company = document.getElementById("unitSelect").value;
+  if (!startDate || !endDate) { showErr("Lütfen başlangıç ve bitiş tarihi seçin."); return; }
   document.getElementById("globalErr").style.display = "none";
+  phoneFilter = document.getElementById("phoneSearch")?.value?.trim() || "";
   setLoading();
   await loadExtMap();
   try {
     const res = await fetch(INVEKTO_API, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ filterType: 0, companyCode: company, startDate: startDate, endDate: endDate,, reportType: 5 })
+      body: JSON.stringify({ filterType: 0, companyCode: company, startDate, endDate, reportType: 5 })
     });
     if (!res.ok) throw new Error("HTTP " + res.status);
     const json = await res.json();
@@ -120,12 +172,12 @@ if (!startDate || !endDate) { showErr("Lütfen başlangıç ve bitiş tarihi se�
 }
 
 function setLoading() {
-  [["gorusmeTbody",9],["performansTbody",8],["denetimTbody",8],["suptbody",8]].forEach(([id,c]) => {
+  [["gorusmeTbody",10],["performansTbody",8],["denetimTbody",8],["suptbody",9]].forEach(([id,c]) => {
     document.getElementById(id).innerHTML = `<tr><td colspan="${c}" class="empty-td">Yükleniyor...</td></tr>`;
   });
 }
 function setEmpty() {
-  [["gorusmeTbody",9],["performansTbody",8],["denetimTbody",8],["suptbody",8]].forEach(([id,c]) => {
+  [["gorusmeTbody",10],["performansTbody",8],["denetimTbody",8],["suptbody",9]].forEach(([id,c]) => {
     document.getElementById(id).innerHTML = `<tr><td colspan="${c}" class="empty-td">Veri bulunamadı.</td></tr>`;
   });
 }
@@ -184,21 +236,25 @@ function renderChart() {
 
 // ---- GÖRÜŞMELER ----
 function renderGorusmeler() {
-  const filtered = allData.filter(r => inTimeRange(r) && (currentDept === "Tümü" || getDept(getExt(r)) === currentDept));
-  if (!filtered.length) { document.getElementById("gorusmeTbody").innerHTML='<tr><td colspan="9" class="empty-td">Bu filtrede veri yok.</td></tr>'; return; }
+  const filtered = allData.filter(r => inTimeRange(r) && inPhoneFilter(r) && (currentDept === "Tümü" || getDept(getExt(r)) === currentDept));
+  if (!filtered.length) { document.getElementById("gorusmeTbody").innerHTML='<tr><td colspan="10" class="empty-td">Bu filtrede veri yok.</td></tr>'; return; }
   const dirLabel = d => { const s = String(d); if(s==="1") return "Giden"; if(s==="2") return "Gelen"; if(s==="3") return "Kaçan"; return d||"—"; };
   document.getElementById("gorusmeTbody").innerHTML = filtered.map(r => {
-    const ring = getRing(r); const dur = getDur(r); const callID = getCallID(r);
+    const ring = getRing(r); const dur = getDur(r); const callID = getCallID(r); const phone = getPhone(r);
     return `<tr>
       <td>${getExt(r)}</td>
       <td class="td-bold">${getName(r)}</td>
       <td><span class="badge badge-info">${getDept(getExt(r))}</span></td>
+      <td>${phone||"—"}</td>
       <td>${dirLabel(getDir(r))}</td>
       <td>${fmtT(getTime(r))}</td>
       <td>${dur??'—'}</td>
       <td>${ring===0?'<span class="badge badge-warn">0</span>':(ring!=null?ring:"—")}</td>
       <td>${dur===0?'<span class="badge badge-fail">Cevaplanmadı</span>':'<span class="badge badge-ok">Bağlandı</span>'}</td>
-      <td>${callID?`<button class="btn-icon" onclick="playAudio('${callID}',this)" title="Ses kaydını dinle"><i class="ti ti-player-play"></i></button>`:'<span class="td-muted">—</span>'}</td>
+      <td style="display:flex;gap:4px">
+        ${callID?`<button class="btn-icon" onclick="playAudio('${callID}',this)" title="Ses kaydı"><i class="ti ti-player-play"></i></button>`:''}
+        ${callID?`<button class="btn-icon" onclick="openNote('${callID}','${getName(r)}')" title="Not ekle"><i class="ti ti-notes"></i></button>`:'<span class="td-muted">—</span>'}
+      </td>
     </tr>`;
   }).join("");
 }
@@ -264,13 +320,17 @@ function renderDenetim() {
   document.getElementById("dn-zero").textContent = results.reduce((s,r)=>s+r.zeroRing,0);
 
   document.getElementById("denetimTbody").innerHTML = results.map(r => {
-    const badge = r.violations.length===0
+    const vc = r.violations.length;
+    const rowBg = vc >= 3 ? "background:rgba(239,68,68,0.07)" : vc >= 1 ? "background:rgba(245,158,11,0.07)" : "";
+    const badge = vc === 0
       ? `<span class="badge badge-ok"><i class="ti ti-check"></i> Uygun</span>`
-      : `<span class="badge badge-fail"><i class="ti ti-alert-triangle"></i> ${r.violations.length} ihlal</span>`;
-    const viols = r.violations.length>0
+      : vc <= 2
+        ? `<span class="badge badge-warn"><i class="ti ti-alert-triangle"></i> ${vc} ihlal</span>`
+        : `<span class="badge badge-fail"><i class="ti ti-alert-triangle"></i> ${vc} ihlal</span>`;
+    const viols = vc > 0
       ? `<div class="violations">${r.violations.map(v=>`<div class="viol"><i class="ti ti-point"></i>${v}</div>`).join("")}</div>`
       : `<span class="td-muted">—</span>`;
-    return `<tr><td class="td-bold">${r.name}</td><td><span class="badge badge-info">${r.dept}</span></td>
+    return `<tr style="${rowBg}"><td class="td-bold">${r.name}</td><td><span class="badge badge-info">${r.dept}</span></td>
       <td>${fmtT(r.firstCall)}</td><td>${fmtT(r.lastCall)}</td><td>${r.total}</td>
       <td>${r.zeroRing>0?`<span class="badge badge-warn">${r.zeroRing}</span>`:"—"}</td>
       <td>${badge}</td><td>${viols}</td></tr>`;
@@ -279,16 +339,21 @@ function renderDenetim() {
 
 // ---- ŞÜPHELİ ----
 function renderSupheli() {
-  const filtered = allData.filter(r => inTimeRange(r) && getRing(r) === 0);
-  if (!filtered.length) { document.getElementById("suptbody").innerHTML='<tr><td colspan="8" class="empty-td">Şüpheli çağrı bulunamadı.</td></tr>'; return; }
+  const filtered = allData.filter(r => inTimeRange(r) && inPhoneFilter(r) && getRing(r) === 0);
+  if (!filtered.length) { document.getElementById("suptbody").innerHTML='<tr><td colspan="9" class="empty-td">Şüpheli çağrı bulunamadı.</td></tr>'; return; }
+  const dirLabel = d => { const s = String(d); if(s==="1") return "Giden"; if(s==="2") return "Gelen"; if(s==="3") return "Kaçan"; return d||"—"; };
   document.getElementById("suptbody").innerHTML = filtered.map(r => {
     const callID = getCallID(r);
     return `<tr>
       <td>${getExt(r)}</td><td class="td-bold">${getName(r)}</td>
       <td><span class="badge badge-info">${getDept(getExt(r))}</span></td>
-      <td>${fmtT(getTime(r))}</td><td>${getDir(r)||"—"}</td>
+      <td>${getPhone(r)||"—"}</td>
+      <td>${fmtT(getTime(r))}</td><td>${dirLabel(getDir(r))}</td>
       <td><span class="badge badge-warn">0</span></td><td>${getDur(r)??'—'}</td>
-      <td>${callID?`<button class="btn-icon" onclick="playAudio('${callID}',this)" title="Ses kaydını dinle"><i class="ti ti-player-play"></i></button>`:'<span class="td-muted">—</span>'}</td>
+      <td style="display:flex;gap:4px">
+        ${callID?`<button class="btn-icon" onclick="playAudio('${callID}',this)" title="Ses kaydı"><i class="ti ti-player-play"></i></button>`:''}
+        ${callID?`<button class="btn-icon" onclick="openNote('${callID}','${getName(r)}')" title="Not ekle"><i class="ti ti-notes"></i></button>`:'<span class="td-muted">—</span>'}
+      </td>
     </tr>`;
   }).join("");
 }
