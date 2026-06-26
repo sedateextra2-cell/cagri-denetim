@@ -1,3 +1,4 @@
+const EDGE_FUNCTION_URL = "https://xirfcajiiiodxtqutqpw.supabase.co/functions/v1/manage-users";
 const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 let currentUser = null;
 let currentProfile = null;
@@ -102,13 +103,13 @@ async function addUser() {
   if (!name || !email || !pass) { errEl.textContent = "Tüm alanları doldurun."; errEl.style.display = "block"; return; }
   if (pass.length < 6) { errEl.textContent = "Şifre en az 6 karakter olmalı."; errEl.style.display = "block"; return; }
 
-  const { data, error } = await _supabase.auth.admin.createUser({
-    email, password: pass,
-    user_metadata: { full_name: name, role },
-    email_confirm: true
+  const res = await fetch(EDGE_FUNCTION_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "Authorization": "Bearer " + (await _supabase.auth.getSession()).data.session.access_token },
+    body: JSON.stringify({ action: "create", email, password: pass, fullName: name, role })
   });
-
-  if (error) { errEl.textContent = "Hata: " + error.message; errEl.style.display = "block"; return; }
+  const result = await res.json();
+  if (result.error) { errEl.textContent = "Hata: " + result.error; errEl.style.display = "block"; return; }
 
   hideAddUser();
   document.getElementById("newName").value = "";
@@ -119,8 +120,13 @@ async function addUser() {
 
 async function deleteUser(uid) {
   if (!confirm("Bu kullanıcıyı silmek istediğinizden emin misiniz?")) return;
-  const { error } = await _supabase.auth.admin.deleteUser(uid);
-  if (error) { alert("Silinemedi: " + error.message); return; }
+  const res = await fetch(EDGE_FUNCTION_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "Authorization": "Bearer " + (await _supabase.auth.getSession()).data.session.access_token },
+    body: JSON.stringify({ action: "delete", userId: uid })
+  });
+  const result = await res.json();
+  if (result.error) { alert("Silinemedi: " + result.error); return; }
   loadUsers();
 }
 
@@ -161,8 +167,13 @@ async function changePassword() {
 
   if (pass.length < 6) { errEl.textContent = "Şifre en az 6 karakter olmalı."; errEl.style.display = "block"; return; }
 
-  const { error } = await _supabase.auth.admin.updateUserById(uid, { password: pass });
-  if (error) { errEl.textContent = "Hata: " + error.message; errEl.style.display = "block"; return; }
+  const res = await fetch(EDGE_FUNCTION_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "Authorization": "Bearer " + (await _supabase.auth.getSession()).data.session.access_token },
+    body: JSON.stringify({ action: "updatePassword", userId: uid, password: pass })
+  });
+  const result = await res.json();
+  if (result.error) { errEl.textContent = "Hata: " + result.error; errEl.style.display = "block"; return; }
 
   closePassModal();
   alert("Şifre başarıyla güncellendi.");
