@@ -17,6 +17,18 @@ function getCallID(r) { return r.CallID || r.callID || r.callId || ""; }
 function getDept(ext) { return extDeptMap[String(ext)] || "—"; }
 function showErr(msg) { const el = document.getElementById("globalErr"); el.textContent = msg; el.style.display = "block"; }
 
+function getTimeFilter() {
+  const start = document.getElementById("startTime")?.value || "00:00";
+  const end = document.getElementById("endTime")?.value || "23:59";
+  return { start, end };
+}
+
+function inTimeRange(r) {
+  const { start, end } = getTimeFilter();
+  const t = getTime(r).substring(0, 5);
+  return t >= start && t <= end;
+}
+
 // ---- SES KAYDI ----
 async function playAudio(callID, btn) {
   if (!callID) { alert("Bu görüşme için ses kaydı bulunamadı."); return; }
@@ -127,10 +139,11 @@ function renderAll() {
 
 // ---- DASHBOARD ----
 function renderDashboard() {
-  const total = allData.length;
-  const out = allData.filter(r => { const d = String(getDir(r)); return d === "1" || d.toLowerCase().includes("out"); }).length;
-  const miss = allData.filter(r => getDur(r) === 0).length;
-  const durs = allData.map(r => getDur(r)).filter(v => v != null && v > 0);
+  const filtered = allData.filter(inTimeRange);
+  const total = filtered.length;
+  const out = filtered.filter(r => { const d = String(getDir(r)); return d === "1" || d.toLowerCase().includes("out"); }).length;
+  const miss = filtered.filter(r => getDur(r) === 0).length;
+  const durs = filtered.map(r => getDur(r)).filter(v => v != null && v > 0);
   const avg = durs.length ? Math.round(durs.reduce((a,b)=>a+b,0)/durs.length) : 0;
   document.getElementById("d-total").textContent = total;
   document.getElementById("d-avg").textContent = avg;
@@ -141,21 +154,22 @@ function renderDashboard() {
 }
 
 function renderChart() {
+  const filtered = allData.filter(inTimeRange);
   const labels = []; const data = [];
   if (chartMode === "hourly") {
     for (let h = 8; h <= 20; h++) {
       labels.push(h + ":00");
-      data.push(allData.filter(r => { const t = getTime(r); return t && parseInt(t.split(":")[0]) === h; }).length);
+      data.push(filtered.filter(r => { const t = getTime(r); return t && parseInt(t.split(":")[0]) === h; }).length);
     }
   } else if (chartMode === "daily") {
     ["Pzt","Sal","Çar","Per","Cum","Cmt","Paz"].forEach(d => { labels.push(d); data.push(0); });
-    allData.forEach(r => { const d = new Date((r.Date||r.date||"")+"T00:00:00").getDay(); const i = (d+6)%7; if(data[i]!=null)data[i]++; });
+    filtered.forEach(r => { const d = new Date((r.Date||r.date||"")+"T00:00:00").getDay(); const i = (d+6)%7; if(data[i]!=null)data[i]++; });
   } else if (chartMode === "weekly") {
     for (let w = 1; w <= 5; w++) { labels.push(w+". hafta"); data.push(0); }
-    allData.forEach(() => { data[0]++; });
+    filtered.forEach(() => { data[0]++; });
   } else {
     ["Oca","Şub","Mar","Nis","May","Haz","Tem","Ağu","Eyl","Eki","Kas","Ara"].forEach(m => { labels.push(m); data.push(0); });
-    allData.forEach(r => { const d = new Date((r.Date||r.date||"")+"T00:00:00"); if(!isNaN(d)) data[d.getMonth()]++; });
+    filtered.forEach(r => { const d = new Date((r.Date||r.date||"")+"T00:00:00"); if(!isNaN(d)) data[d.getMonth()]++; });
   }
   if (mainChartInst) mainChartInst.destroy();
   const ctx = document.getElementById("mainChart").getContext("2d");
@@ -169,8 +183,8 @@ function renderChart() {
 
 // ---- GÖRÜŞMELER ----
 function renderGorusmeler() {
-  const filtered = currentDept === "Tümü" ? allData : allData.filter(r => getDept(getExt(r)) === currentDept);
-  if (!filtered.length) { document.getElementById("gorusmeTbody").innerHTML='<tr><td colspan="9" class="empty-td">Bu departmanda veri yok.</td></tr>'; return; }
+  const filtered = allData.filter(r => inTimeRange(r) && (currentDept === "Tümü" || getDept(getExt(r)) === currentDept));
+  if (!filtered.length) { document.getElementById("gorusmeTbody").innerHTML='<tr><td colspan="9" class="empty-td">Bu filtrede veri yok.</td></tr>'; return; }
   const dirLabel = d => { const s = String(d); if(s==="1") return "Giden"; if(s==="2") return "Gelen"; if(s==="3") return "Kaçan"; return d||"—"; };
   document.getElementById("gorusmeTbody").innerHTML = filtered.map(r => {
     const ring = getRing(r); const dur = getDur(r); const callID = getCallID(r);
@@ -190,8 +204,9 @@ function renderGorusmeler() {
 
 // ---- PERFORMANS ----
 function renderPerformans() {
+  const filtered = allData.filter(inTimeRange);
   const byExt = {};
-  allData.forEach(r => {
+  filtered.forEach(r => {
     const ext = getExt(r);
     if (!byExt[ext]) byExt[ext] = {ext, name:getName(r), total:0, totalDur:0, out:0, inDur:0, miss:0};
     byExt[ext].total++;
@@ -212,8 +227,9 @@ function renderPerformans() {
 
 // ---- DENETİM ----
 function renderDenetim() {
+  const filtered = allData.filter(inTimeRange);
   const byExt = {};
-  allData.forEach(r => {
+  filtered.forEach(r => {
     const ext = getExt(r);
     if (!byExt[ext]) byExt[ext] = {ext, name:getName(r), calls:[]};
     byExt[ext].calls.push(r);
@@ -262,9 +278,9 @@ function renderDenetim() {
 
 // ---- ŞÜPHELİ ----
 function renderSupheli() {
-  const sup = allData.filter(r => getRing(r) === 0);
-  if (!sup.length) { document.getElementById("suptbody").innerHTML='<tr><td colspan="8" class="empty-td">Şüpheli çağrı bulunamadı.</td></tr>'; return; }
-  document.getElementById("suptbody").innerHTML = sup.map(r => {
+  const filtered = allData.filter(r => inTimeRange(r) && getRing(r) === 0);
+  if (!filtered.length) { document.getElementById("suptbody").innerHTML='<tr><td colspan="8" class="empty-td">Şüpheli çağrı bulunamadı.</td></tr>'; return; }
+  document.getElementById("suptbody").innerHTML = filtered.map(r => {
     const callID = getCallID(r);
     return `<tr>
       <td>${getExt(r)}</td><td class="td-bold">${getName(r)}</td>
