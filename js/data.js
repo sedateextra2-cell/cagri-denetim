@@ -94,9 +94,10 @@ async function saveExtMap() {
 
 // ---- FETCH ----
 async function fetchAll() {
-  const date = document.getElementById("dateInput").value;
-  const company = document.getElementById("unitSelect").value;
-  if (!date) { showErr("Lütfen tarih seçin."); return; }
+  const startDate = document.getElementById("startDate").value;
+const endDate = document.getElementById("endDate").value;
+const company = document.getElementById("unitSelect").value;
+if (!startDate || !endDate) { showErr("Lütfen başlangıç ve bitiş tarihi seçin."); return; }
   document.getElementById("globalErr").style.display = "none";
   setLoading();
   await loadExtMap();
@@ -104,7 +105,7 @@ async function fetchAll() {
     const res = await fetch(INVEKTO_API, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ filterType: 0, companyCode: company, startDate: date, endDate: date, reportType: 5 })
+      body: JSON.stringify({ filterType: 0, companyCode: company, startDate: startDate, endDate: endDate,, reportType: 5 })
     });
     if (!res.ok) throw new Error("HTTP " + res.status);
     const json = await res.json();
